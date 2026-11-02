@@ -4,3 +4,13 @@ python-multipart>=0.0.9
 python-dotenv>=1.0
 pymupdf>=1.24.3
 edge-tts>=7.0
+
+# แปลภาษา: HPLT (offline, ค่าเริ่มต้น) / Claude API / Google (ฟรี)
+ctranslate2>=4.5
+sentencepiece>=0.2
+huggingface_hub>=0.24
+anthropic>=1.0
+deep-translator>=1.11
+
+# เก็บไฟล์เสียง (ไม่บังคับ ใช้เมื่อตั้ง CLOUDINARY_URL)
+cloudinary>=1.40

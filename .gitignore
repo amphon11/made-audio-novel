@@ -13,6 +13,9 @@ venv/
 *.mp3
 output/
 
+# โมเดลแปล (สร้างด้วย scripts/prepare_hplt.py)
+models/
+
 # Editor / OS
 .vscode/
 .idea/

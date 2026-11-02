@@ -1,25 +1,54 @@
+import asyncio
 import os
 from pathlib import Path
 from urllib.parse import quote
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, Response
-from fastapi.staticfiles import StaticFiles
-
-from . import __version__
-from .services import THAI_VOICES, PdfError, extract_text, synthesize
 
 load_dotenv()
+
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile  # noqa: E402
+from fastapi.responses import FileResponse, Response  # noqa: E402
+from fastapi.staticfiles import StaticFiles  # noqa: E402
+
+from . import __version__, jobs  # noqa: E402
+from .services import (  # noqa: E402
+    DEMO_TEXT,
+    THAI_VOICES,
+    PdfError,
+    cloudinary_enabled,
+    detect_language,
+    extract_text,
+    hplt_available,
+    ocr_available,
+    synthesize,
+    translate_to_thai,
+    translator_name,
+    upload_audio,
+)
 
 DEFAULT_VOICE = os.getenv("TTS_VOICE", "th-TH-PremwadeeNeural")
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "20"))
 MAX_PAGES = int(os.getenv("MAX_PAGES", "50"))
+MAX_CHARS = int(os.getenv("MAX_CHARS", "300000"))
 
 STATIC_DIR = Path(__file__).parent / "static"
 
 app = FastAPI(title="made-audio-novel", version=__version__)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+_demo_cache: dict[tuple, bytes] = {}
+
+
+def _check_voice(voice: str, rate: int, pitch: int, volume: int) -> None:
+    if voice not in THAI_VOICES:
+        raise HTTPException(400, "เสียงที่เลือกไม่ถูกต้อง")
+    if not -50 <= rate <= 100:
+        raise HTTPException(400, "ความเร็วต้องอยู่ระหว่าง -50 ถึง 100")
+    if not -50 <= pitch <= 50:
+        raise HTTPException(400, "ระดับเสียงต้องอยู่ระหว่าง -50 ถึง 50 Hz")
+    if not -50 <= volume <= 50:
+        raise HTTPException(400, "ความดังต้องอยู่ระหว่าง -50 ถึง 50")
 
 
 async def _read_pdf(file: UploadFile) -> bytes:
@@ -31,11 +60,11 @@ async def _read_pdf(file: UploadFile) -> bytes:
     return data
 
 
-def _extract(data: bytes) -> tuple[str, int]:
-    try:
-        return extract_text(data, MAX_PAGES)
-    except PdfError as exc:
-        raise HTTPException(422, str(exc)) from exc
+def _job_or_404(job_id: str) -> jobs.Job:
+    job = jobs.get(job_id)
+    if not job:
+        raise HTTPException(404, "ไม่พบงานนี้ (อาจหมดอายุแล้ว)")
+    return job
 
 
 @app.get("/")
@@ -45,7 +74,14 @@ def index():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": __version__}
+    return {
+        "status": "ok",
+        "version": __version__,
+        "translator": translator_name(),
+        "hplt_model": hplt_available(),
+        "ocr": ocr_available(),
+        "cloudinary": cloudinary_enabled(),
+    }
 
 
 @app.get("/api/voices")
@@ -53,32 +89,101 @@ def voices():
     return {"default": DEFAULT_VOICE, "voices": THAI_VOICES}
 
 
-@app.post("/api/extract")
-async def extract(file: UploadFile = File(...)):
-    text, pages = _extract(await _read_pdf(file))
-    return {"pages": pages, "characters": len(text), "text": text}
+@app.get("/api/voices/{voice}/demo")
+async def voice_demo(voice: str, rate: int = 0, pitch: int = 0, volume: int = 0):
+    _check_voice(voice, rate, pitch, volume)
+    key = (voice, rate, pitch, volume)
+    if key not in _demo_cache:
+        try:
+            _demo_cache[key], _ = await synthesize(DEMO_TEXT, voice, rate, pitch, volume)
+        except Exception as exc:
+            raise HTTPException(502, f"สร้างเสียงตัวอย่างไม่สำเร็จ: {exc}") from exc
+    return Response(_demo_cache[key], media_type="audio/mpeg", headers={"Cache-Control": "max-age=86400"})
 
 
-@app.post("/api/convert")
-async def convert(
-    file: UploadFile = File(...),
+@app.post("/api/prepare")
+async def prepare(file: UploadFile = File(...), translate: bool = Form(True)):
+    """อ่าน PDF (OCR หน้าสแกน) และแปลเป็นไทยถ้าเป็นภาษาอื่น ติดตามผลที่ /api/jobs/{id}"""
+    data = await _read_pdf(file)
+
+    async def work(job: jobs.Job):
+        job.update("กำลังอ่าน PDF", 1)
+        try:
+            original, pages, ocr_pages = await asyncio.to_thread(
+                extract_text, data, MAX_PAGES, lambda p: job.update("กำลังอ่าน PDF", 1 + p * 14)
+            )
+        except PdfError as exc:
+            raise RuntimeError(str(exc)) from exc
+        language = detect_language(original)
+
+        text, translated = original, False
+        if translate and language != "th":
+            stage = f"กำลังแปลเป็นภาษาไทย ({translator_name()})"
+            job.update(stage, 15)
+            text = await translate_to_thai(original, lambda p: job.update(stage, 15 + p * 85))
+            translated = True
+
+        job.result = {
+            "pages": pages,
+            "ocr_pages": ocr_pages,
+            "language": language,
+            "translated": translated,
+            "translator": translator_name() if translated else None,
+            "original": original,
+            "text": text,
+        }
+
+    return jobs.start(work).public()
+
+
+@app.post("/api/synthesize")
+async def synthesize_job(
+    text: str = Form(...),
     voice: str = Form(DEFAULT_VOICE),
     rate: int = Form(0),
+    pitch: int = Form(0),
+    volume: int = Form(0),
+    name: str = Form("audio"),
 ):
-    if voice not in THAI_VOICES:
-        raise HTTPException(400, "เสียงที่เลือกไม่ถูกต้อง")
-    if not -50 <= rate <= 100:
-        raise HTTPException(400, "ความเร็วต้องอยู่ระหว่าง -50 ถึง 100")
+    """แปลงข้อความเป็น MP3 ติดตามผลที่ /api/jobs/{id} แล้วโหลดเสียงที่ /api/jobs/{id}/audio"""
+    _check_voice(voice, rate, pitch, volume)
+    text = text.strip()
+    if not text:
+        raise HTTPException(400, "ไม่มีข้อความให้แปลงเป็นเสียง")
+    if len(text) > MAX_CHARS:
+        raise HTTPException(413, f"ข้อความยาวเกิน {MAX_CHARS:,} ตัวอักษร")
 
-    text, _ = _extract(await _read_pdf(file))
-    try:
-        audio = await synthesize(text, voice, rate)
-    except Exception as exc:
-        raise HTTPException(502, f"แปลงเสียงไม่สำเร็จ: {exc}") from exc
+    async def work(job: jobs.Job):
+        stage = "กำลังแปลงเป็นเสียง"
+        job.update(stage, 1)
+        upload = cloudinary_enabled()
+        scale = 95 if upload else 100
+        job.audio, pitch_fallback = await synthesize(
+            text, voice, rate, pitch, volume, lambda p: job.update(stage, p * scale)
+        )
+        job.result = {"size": len(job.audio), "url": None, "pitch_fallback": pitch_fallback}
+        if upload:
+            job.update("กำลังอัปโหลดขึ้น Cloudinary", 95)
+            try:
+                job.result["url"] = await upload_audio(job.audio, Path(name).stem)
+            except Exception as exc:
+                job.result["upload_error"] = f"อัปโหลด Cloudinary ไม่สำเร็จ: {exc}"
 
-    name = Path(file.filename or "audio").stem
+    return jobs.start(work).public()
+
+
+@app.get("/api/jobs/{job_id}")
+def job_status(job_id: str):
+    return _job_or_404(job_id).public()
+
+
+@app.get("/api/jobs/{job_id}/audio")
+def job_audio(job_id: str, name: str = "audio"):
+    job = _job_or_404(job_id)
+    if job.status != "done" or job.audio is None:
+        raise HTTPException(409, "ไฟล์เสียงยังไม่พร้อม")
     return Response(
-        content=audio,
+        content=job.audio,
         media_type="audio/mpeg",
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}.mp3"},
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(Path(name).stem)}.mp3"},
     )

@@ -4,99 +4,430 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Made Audio Novel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #f6f5f2; --card: #ffffff; --text: #1f1f1f; --muted: #6b6b6b;
-      --accent: #2f6f5e; --border: #dedbd4; --error: #b3261e;
+      color-scheme: light;
+      --bg: #f4f3fb;
+      --surface: rgba(255, 255, 255, .78);
+      --surface-solid: #ffffff;
+      --text: #17151f;
+      --muted: #6c6880;
+      --border: rgba(23, 21, 31, .09);
+      --accent: #6d4aff;
+      --accent-2: #ff6a8b;
+      --accent-soft: rgba(109, 74, 255, .1);
+      --error: #d93a4f;
+      --success: #1f9d6b;
+      --shadow: 0 1px 2px rgba(23, 21, 31, .04), 0 12px 32px -12px rgba(48, 30, 120, .18);
+      --glow-1: rgba(109, 74, 255, .28);
+      --glow-2: rgba(255, 106, 139, .22);
     }
     @media (prefers-color-scheme: dark) {
       :root {
-        --bg: #161816; --card: #1f2220; --text: #ececec; --muted: #a0a0a0;
-        --accent: #6fbfa6; --border: #333733; --error: #f2b8b5;
+        color-scheme: dark;
+        --bg: #0e0d14;
+        --surface: rgba(28, 26, 38, .72);
+        --surface-solid: #1c1a26;
+        --text: #f0eef8;
+        --muted: #9d98b3;
+        --border: rgba(255, 255, 255, .08);
+        --accent: #9b85ff;
+        --accent-2: #ff8aa5;
+        --accent-soft: rgba(155, 133, 255, .14);
+        --error: #ff7b8c;
+        --success: #4fd1a0;
+        --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 16px 40px -16px rgba(0, 0, 0, .6);
+        --glow-1: rgba(109, 74, 255, .22);
+        --glow-2: rgba(255, 106, 139, .12);
       }
     }
+
     * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
     body {
-      margin: 0; background: var(--bg); color: var(--text);
-      font-family: "Sarabun", "Noto Sans Thai", "Leelawadee UI", system-ui, sans-serif;
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(48rem 32rem at 10% -10%, var(--glow-1), transparent 60%),
+        radial-gradient(40rem 28rem at 110% 10%, var(--glow-2), transparent 60%),
+        var(--bg);
+      background-attachment: fixed;
+      color: var(--text);
+      font-family: "IBM Plex Sans Thai", "Noto Sans Thai", "Leelawadee UI", system-ui, sans-serif;
       line-height: 1.6;
     }
-    main { max-width: 720px; margin: 0 auto; padding: 32px 16px; }
-    h1 { margin: 0 0 4px; font-size: 1.6rem; }
-    .sub { margin: 0 0 24px; color: var(--muted); }
+    main { max-width: 760px; margin: 0 auto; padding: 48px 16px 64px; }
+
+    /* Header */
+    .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+    .logo {
+      width: 44px; height: 44px; border-radius: 14px; flex-shrink: 0;
+      display: grid; place-items: center; color: #fff;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 8px 20px -6px var(--glow-1);
+    }
+    .brand-name { font-weight: 700; font-size: 1.05rem; letter-spacing: .01em; }
+    .brand-tag { font-size: .8rem; color: var(--muted); }
+    h1 {
+      margin: 0 0 8px; font-size: clamp(1.8rem, 5vw, 2.6rem); line-height: 1.2; font-weight: 700;
+      letter-spacing: -.01em;
+    }
+    h1 .grad {
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .lead { margin: 0 0 32px; color: var(--muted); font-size: 1.02rem; }
+
+    /* Cards */
     .card {
-      background: var(--card); border: 1px solid var(--border);
-      border-radius: 12px; padding: 20px; margin-bottom: 16px;
+      background: var(--surface);
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: var(--shadow);
+      margin-bottom: 20px;
     }
-    label { display: block; font-weight: 600; margin: 12px 0 6px; }
-    label:first-child { margin-top: 0; }
-    input[type=file], select { width: 100%; font: inherit; color: inherit; }
-    select { padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); }
-    input[type=range] { width: 100%; accent-color: var(--accent); }
-    .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
-    button {
-      font: inherit; padding: 10px 18px; border-radius: 8px; cursor: pointer;
-      border: 1px solid var(--accent); background: var(--accent); color: var(--card);
+    .section-title {
+      display: flex; align-items: center; gap: 10px;
+      font-weight: 600; margin: 0 0 14px; font-size: .98rem;
     }
-    button.secondary { background: transparent; color: var(--accent); }
-    button:disabled { opacity: .5; cursor: wait; }
-    #status { min-height: 1.6em; color: var(--muted); }
-    #status.error { color: var(--error); }
-    #preview {
-      width: 100%; min-height: 200px; font: inherit; color: inherit;
-      background: transparent; border: 1px solid var(--border); border-radius: 8px; padding: 10px;
+    .step {
+      width: 24px; height: 24px; border-radius: 50%; font-size: .78rem; font-weight: 700; flex-shrink: 0;
+      display: grid; place-items: center; background: var(--accent-soft); color: var(--accent);
     }
-    audio { width: 100%; margin-top: 8px; }
-    a { color: var(--accent); }
+    .step.done { background: var(--success); color: #fff; }
+    .block + .block { margin-top: 26px; }
+    .card.locked { opacity: .55; pointer-events: none; filter: saturate(.6); }
+
+    /* Dropzone */
+    .dropzone {
+      position: relative; display: flex; align-items: center; gap: 16px;
+      padding: 22px; border-radius: 16px; cursor: pointer;
+      border: 1.5px dashed color-mix(in srgb, var(--accent) 40%, transparent);
+      background: var(--accent-soft);
+      transition: border-color .2s, background .2s, transform .2s;
+    }
+    .dropzone:hover, .dropzone.drag { border-color: var(--accent); transform: translateY(-1px); }
+    .dropzone.drag { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+    .dropzone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .dz-icon {
+      width: 48px; height: 48px; border-radius: 14px; flex-shrink: 0;
+      display: grid; place-items: center; background: var(--surface-solid); color: var(--accent);
+      box-shadow: var(--shadow);
+    }
+    .dz-title { font-weight: 600; word-break: break-all; }
+    .dz-hint { font-size: .85rem; color: var(--muted); }
+    .dropzone.has-file .dz-icon { color: var(--success); }
+
+    /* Toggle */
+    .toggle { display: flex; align-items: center; gap: 12px; margin-top: 16px; cursor: pointer; user-select: none; }
+    .toggle input { position: absolute; opacity: 0; }
+    .switch {
+      width: 42px; height: 24px; border-radius: 999px; background: var(--border); position: relative; flex-shrink: 0;
+      transition: background .2s;
+    }
+    .switch::after {
+      content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%;
+      background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); transition: transform .2s;
+    }
+    .toggle input:checked + .switch { background: var(--accent); }
+    .toggle input:checked + .switch::after { transform: translateX(18px); }
+    .toggle input:focus-visible + .switch { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .toggle small { display: block; color: var(--muted); font-size: .8rem; }
+
+    /* Voice picker */
+    .voices { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+    .voice {
+      position: relative; display: flex; align-items: center; gap: 12px;
+      padding: 12px 12px 12px 14px; border-radius: 14px; cursor: pointer;
+      border: 1.5px solid var(--border); background: var(--surface-solid);
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .voice input { position: absolute; opacity: 0; pointer-events: none; }
+    .voice:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+    .voice:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .avatar {
+      width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+      display: grid; place-items: center; font-weight: 700; color: #fff;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    }
+    .voice-info { flex: 1; min-width: 0; }
+    .voice-name { font-weight: 600; line-height: 1.3; }
+    .voice-meta { font-size: .8rem; color: var(--muted); }
+    .demo {
+      width: 38px; height: 38px; padding: 0; border-radius: 50%; flex-shrink: 0;
+      background: var(--accent-soft); color: var(--accent); border: 0;
+    }
+    .demo:hover { background: var(--accent); color: #fff; }
+    .demo .i-stop, .demo.playing .i-play { display: none; }
+    .demo.playing .i-stop { display: block; }
+
+    /* Sliders */
+    .sliders { display: grid; gap: 18px; }
+    .slider-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+    .slider-head label { font-weight: 500; font-size: .92rem; }
+    .pill {
+      font-variant-numeric: tabular-nums; font-weight: 600; color: var(--accent);
+      background: var(--accent-soft); padding: 2px 10px; border-radius: 999px; font-size: .82rem;
+    }
+    input[type=range] {
+      -webkit-appearance: none; appearance: none; width: 100%; height: 6px; margin: 10px 0 0;
+      border-radius: 999px; outline: none;
+      background: linear-gradient(90deg, var(--accent) var(--fill, 50%), var(--border) var(--fill, 50%));
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%;
+      background: var(--surface-solid); border: 3px solid var(--accent); cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, .2);
+    }
+    input[type=range]::-moz-range-thumb {
+      width: 14px; height: 14px; border-radius: 50%;
+      background: var(--surface-solid); border: 3px solid var(--accent); cursor: pointer;
+    }
+    input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px var(--accent-soft); }
+
+    /* Buttons */
+    .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 24px; }
+    button, .btn {
+      font: inherit; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 12px 22px; border-radius: 12px; cursor: pointer; text-decoration: none;
+      border: 1px solid transparent; transition: transform .15s, box-shadow .2s, opacity .2s, background .2s;
+    }
+    button:active, .btn:active { transform: scale(.98); }
+    .primary {
+      flex: 1 1 220px; color: #fff;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 10px 24px -10px var(--glow-1);
+    }
+    .primary:hover { box-shadow: 0 14px 30px -10px var(--glow-1); }
+    .ghost { background: var(--surface-solid); color: var(--text); border-color: var(--border); }
+    .ghost:hover { border-color: var(--accent); color: var(--accent); }
+    button:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+    button.loading { cursor: progress; }
+    .spinner {
+      width: 16px; height: 16px; border-radius: 50%;
+      border: 2px solid currentColor; border-right-color: transparent;
+      animation: spin .7s linear infinite; display: none;
+    }
+    .loading .spinner { display: inline-block; }
+    .loading .icon { display: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Progress */
+    .progress-wrap { margin-top: 16px; }
+    .progress-meta { display: flex; justify-content: space-between; gap: 12px; font-size: .88rem; margin-bottom: 6px; }
+    .progress-stage { color: var(--muted); }
+    .progress-pct { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--accent); }
+    .bar { height: 8px; border-radius: 999px; overflow: hidden; background: var(--accent-soft); }
+    .bar > span {
+      display: block; height: 100%; width: 0; border-radius: inherit;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      transition: width .4s ease;
+    }
+    .status { margin: 12px 0 0; min-height: 1.4em; font-size: .9rem; color: var(--muted); }
+    .status.error { color: var(--error); }
+
+    /* Text */
+    .meta-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+    .chip {
+      font-size: .8rem; padding: 3px 10px; border-radius: 999px;
+      background: var(--accent-soft); color: var(--accent); font-weight: 500;
+    }
+    .tabs { display: inline-flex; padding: 4px; border-radius: 12px; background: var(--accent-soft); margin-bottom: 12px; }
+    .tab {
+      padding: 6px 14px; border-radius: 9px; font-size: .88rem; background: transparent; color: var(--muted); border: 0;
+    }
+    .tab[aria-selected=true] { background: var(--surface-solid); color: var(--text); box-shadow: 0 1px 4px rgba(0, 0, 0, .12); }
+    textarea {
+      width: 100%; min-height: 260px; resize: vertical; font: inherit; font-size: .95rem; line-height: 1.85;
+      color: inherit; background: var(--surface-solid); border: 1px solid var(--border);
+      border-radius: 12px; padding: 14px 16px;
+    }
+    textarea:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+    .hint { font-size: .8rem; color: var(--muted); margin: 8px 0 0; }
+
+    /* Player */
+    .player-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+    .disc {
+      width: 52px; height: 52px; border-radius: 16px; flex-shrink: 0; color: #fff;
+      display: grid; place-items: center;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    }
+    .track-name { font-weight: 600; word-break: break-all; }
+    .track-meta { font-size: .85rem; color: var(--muted); }
+    audio { width: 100%; height: 44px; }
+    .cloud-link { font-size: .85rem; color: var(--muted); margin: 12px 0 0; word-break: break-all; }
+    .cloud-link a { color: var(--accent); }
+
+    .reveal { animation: rise .35s ease-out; }
+    @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+    footer { text-align: center; color: var(--muted); font-size: .8rem; margin-top: 32px; }
     [hidden] { display: none !important; }
+
+    @media (max-width: 520px) {
+      main { padding-top: 32px; }
+      .card { padding: 18px; border-radius: 18px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
   </style>
 </head>
 <body>
 <main>
-  <h1>Made Audio Novel</h1>
-  <p class="sub">อัปโหลดนิยาย PDF ภาษาไทย แล้วแปลงเป็นไฟล์เสียง MP3</p>
-
-  <form id="form" class="card">
-    <label for="file">ไฟล์ PDF</label>
-    <input id="file" name="file" type="file" accept="application/pdf,.pdf" required>
-
-    <label for="voice">เสียงผู้อ่าน</label>
-    <select id="voice" name="voice"></select>
-
-    <label for="rate">ความเร็ว: <span id="rateLabel">0%</span></label>
-    <input id="rate" name="rate" type="range" min="-50" max="100" step="5" value="0">
-
-    <div class="row">
-      <button type="button" id="previewBtn" class="secondary">ดูข้อความ</button>
-      <button type="submit" id="convertBtn">แปลงเป็นเสียง</button>
+  <div class="brand">
+    <div class="logo" aria-hidden="true">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
     </div>
-    <p id="status" role="status"></p>
-  </form>
+    <div>
+      <div class="brand-name">Made Audio Novel</div>
+      <div class="brand-tag">PDF → แปลไทย → เสียงอ่าน</div>
+    </div>
+  </div>
 
-  <section id="textCard" class="card" hidden>
-    <label for="preview">ข้อความที่ดึงได้ <span id="meta" class="sub"></span></label>
-    <textarea id="preview" readonly></textarea>
+  <h1>เปลี่ยนนิยายของคุณ<br>ให้เป็น<span class="grad">หนังสือเสียง</span></h1>
+  <p class="lead">อัปโหลด PDF ภาษาไทยหรืออังกฤษ ระบบแปลเป็นไทยให้อัตโนมัติ ตรวจแก้ข้อความ แล้วเลือกเสียงผู้อ่าน</p>
+
+  <!-- STEP 1 -->
+  <section class="card" id="step1">
+    <p class="section-title"><span class="step" id="s1">1</span>อัปโหลดนิยาย</p>
+    <label class="dropzone" id="dropzone">
+      <input id="file" type="file" accept="application/pdf,.pdf">
+      <span class="dz-icon" aria-hidden="true">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9 15 3-3 3 3"/></svg>
+      </span>
+      <span>
+        <span class="dz-title" id="dzTitle">ลากไฟล์ PDF มาวาง หรือคลิกเพื่อเลือก</span><br>
+        <span class="dz-hint" id="dzHint">ไฟล์ข้อความหรือไฟล์สแกน (OCR ไทย/อังกฤษ)</span>
+      </span>
+    </label>
+
+    <label class="toggle">
+      <input type="checkbox" id="translate" checked>
+      <span class="switch" aria-hidden="true"></span>
+      <span>แปลเป็นภาษาไทยอัตโนมัติ<small>ถ้าไฟล์เป็นภาษาอังกฤษ ระบบจะแปลเป็นไทยก่อนอ่าน</small></span>
+    </label>
+
+    <div class="actions">
+      <button type="button" id="prepareBtn" class="primary">
+        <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>
+        <span class="spinner"></span>อ่านและแปลข้อความ
+      </button>
+    </div>
+    <div class="progress-wrap" id="prepProgress" hidden>
+      <div class="progress-meta"><span class="progress-stage"></span><span class="progress-pct">0%</span></div>
+      <div class="bar"><span></span></div>
+    </div>
+    <p class="status" id="prepStatus" role="status" aria-live="polite"></p>
   </section>
 
+  <!-- TEXT -->
+  <section class="card" id="textCard" hidden>
+    <p class="section-title"><span class="step done">✓</span>ตรวจข้อความก่อนแปลงเสียง</p>
+    <div class="meta-chips" id="meta"></div>
+    <div class="tabs" role="tablist" id="tabs" hidden>
+      <button type="button" class="tab" role="tab" aria-selected="true" data-tab="thai">ภาษาไทย (ใช้อ่าน)</button>
+      <button type="button" class="tab" role="tab" aria-selected="false" data-tab="original">ต้นฉบับ</button>
+    </div>
+    <textarea id="thaiText" aria-label="ข้อความภาษาไทยที่จะใช้อ่าน"></textarea>
+    <textarea id="originalText" aria-label="ข้อความต้นฉบับ" readonly hidden></textarea>
+    <p class="hint" id="textHint">แก้ไขข้อความภาษาไทยได้ก่อนแปลงเป็นเสียง</p>
+  </section>
+
+  <!-- STEP 2 -->
+  <section class="card locked" id="step2">
+    <div class="block">
+      <p class="section-title"><span class="step">2</span>เลือกเสียงผู้อ่าน<span class="voice-meta" style="font-weight:400">· กด ▶ เพื่อฟังตัวอย่าง</span></p>
+      <div class="voices" id="voices" role="radiogroup" aria-label="เสียงผู้อ่าน"></div>
+    </div>
+
+    <div class="block">
+      <p class="section-title"><span class="step">3</span>ปรับเสียง</p>
+      <div class="sliders">
+        <div>
+          <div class="slider-head"><label for="rate">ความเร็ว</label><span class="pill" id="rateLabel">ปกติ</span></div>
+          <input id="rate" type="range" min="-50" max="100" step="5" value="0" data-unit="%">
+        </div>
+        <div>
+          <div class="slider-head"><label for="pitch">ระดับเสียง (สูง/ต่ำ)</label><span class="pill" id="pitchLabel">ปกติ</span></div>
+          <input id="pitch" type="range" min="-50" max="50" step="5" value="0" data-unit=" Hz">
+        </div>
+        <div>
+          <div class="slider-head"><label for="volume">ความดัง</label><span class="pill" id="volumeLabel">ปกติ</span></div>
+          <input id="volume" type="range" min="-50" max="50" step="5" value="0" data-unit="%">
+        </div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="button" id="convertBtn" class="primary">
+        <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        <span class="spinner"></span>แปลงเป็นเสียง
+      </button>
+    </div>
+    <div class="progress-wrap" id="ttsProgress" hidden>
+      <div class="progress-meta"><span class="progress-stage"></span><span class="progress-pct">0%</span></div>
+      <div class="bar"><span></span></div>
+    </div>
+    <p class="status" id="ttsStatus" role="status" aria-live="polite"></p>
+  </section>
+
+  <!-- RESULT -->
   <section id="audioCard" class="card" hidden>
-    <label>ไฟล์เสียง</label>
+    <div class="player-head">
+      <div class="disc" aria-hidden="true">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+      </div>
+      <div>
+        <div class="track-name" id="trackName"></div>
+        <div class="track-meta" id="trackMeta"></div>
+      </div>
+    </div>
     <audio id="player" controls></audio>
-    <p><a id="download" download>ดาวน์โหลด MP3</a></p>
+    <div class="actions" style="margin-top:16px">
+      <a id="download" class="btn ghost" download>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
+        ดาวน์โหลด MP3
+      </a>
+    </div>
+    <p class="cloud-link" id="cloudLink" hidden></p>
   </section>
+
+  <footer>Made Audio Novel · แปลด้วย HPLT / Claude · เสียงสังเคราะห์โดย Microsoft Edge TTS</footer>
 </main>
 
 <script>
   const $ = (id) => document.getElementById(id);
-  const form = $("form");
+  const fileInput = $("file");
+  const dropzone = $("dropzone");
+  const demoAudio = new Audio();
+  let audioUrl = null;
 
-  function setStatus(msg, isError = false) {
-    $("status").textContent = msg;
-    $("status").classList.toggle("error", isError);
+  const LANG = { th: "ภาษาไทย", en: "ภาษาอังกฤษ", other: "ภาษาอื่น" };
+  const TRANSLATOR = { hplt: "HPLT (ออฟไลน์)", claude: "Claude", google: "Google" };
+
+  // ---------- helpers ----------
+  function setStatus(id, msg, isError = false) {
+    $(id).textContent = msg;
+    $(id).classList.toggle("error", isError);
   }
 
-  function setBusy(busy) {
-    $("previewBtn").disabled = busy;
-    $("convertBtn").disabled = busy;
+  function setProgress(id, stage, pct) {
+    const wrap = $(id);
+    wrap.hidden = false;
+    wrap.querySelector(".progress-stage").textContent = stage;
+    wrap.querySelector(".progress-pct").textContent = Math.round(pct) + "%";
+    wrap.querySelector(".bar > span").style.width = pct + "%";
+  }
+
+  function setBusy(btn, busy) {
+    btn.disabled = busy;
+    btn.classList.toggle("loading", busy);
   }
 
   async function errorMessage(res) {
@@ -104,62 +435,210 @@
     catch { return res.statusText; }
   }
 
-  async function loadVoices() {
-    const res = await fetch("/api/voices");
-    const data = await res.json();
-    for (const [id, name] of Object.entries(data.voices)) {
-      const opt = new Option(name, id, false, id === data.default);
-      $("voice").add(opt);
+  function formatSize(bytes) {
+    return bytes < 1024 * 1024 ? (bytes / 1024).toFixed(0) + " KB" : (bytes / 1024 / 1024).toFixed(1) + " MB";
+  }
+
+  function baseName() {
+    const f = fileInput.files[0];
+    return f ? f.name.replace(/\.pdf$/i, "") : "audio";
+  }
+
+  async function startJob(url, body) {
+    const res = await fetch(url, { method: "POST", body });
+    if (!res.ok) throw new Error(await errorMessage(res));
+    return res.json();
+  }
+
+  async function waitJob(job, onUpdate) {
+    while (true) {
+      onUpdate(job);
+      if (job.status === "done") return job;
+      if (job.status === "error") throw new Error(job.error);
+      await new Promise((r) => setTimeout(r, 600));
+      const res = await fetch(`/api/jobs/${job.id}`);
+      if (!res.ok) throw new Error(await errorMessage(res));
+      job = await res.json();
     }
   }
 
-  $("rate").addEventListener("input", (e) => {
-    const v = Number(e.target.value);
-    $("rateLabel").textContent = (v > 0 ? "+" : "") + v + "%";
-  });
+  // ---------- step 1: file + prepare ----------
+  function updateFile() {
+    const file = fileInput.files[0];
+    dropzone.classList.toggle("has-file", !!file);
+    $("dzTitle").textContent = file ? file.name : "ลากไฟล์ PDF มาวาง หรือคลิกเพื่อเลือก";
+    $("dzHint").textContent = file ? formatSize(file.size) + " · คลิกเพื่อเปลี่ยนไฟล์" : "ไฟล์ข้อความหรือไฟล์สแกน (OCR ไทย/อังกฤษ)";
+    setStatus("prepStatus", "");
+  }
+  fileInput.addEventListener("change", updateFile);
+  ["dragenter", "dragover"].forEach((t) => dropzone.addEventListener(t, () => dropzone.classList.add("drag")));
+  ["dragleave", "drop"].forEach((t) => dropzone.addEventListener(t, () => dropzone.classList.remove("drag")));
 
-  $("previewBtn").addEventListener("click", async () => {
-    if (!$("file").files.length) return setStatus("กรุณาเลือกไฟล์ PDF", true);
+  $("prepareBtn").addEventListener("click", async () => {
+    if (!fileInput.files.length) {
+      setStatus("prepStatus", "กรุณาเลือกไฟล์ PDF ก่อน", true);
+      dropzone.animate([{ transform: "translateX(0)" }, { transform: "translateX(-6px)" }, { transform: "translateX(6px)" }, { transform: "translateX(0)" }], { duration: 250 });
+      return;
+    }
     const body = new FormData();
-    body.append("file", $("file").files[0]);
-    setBusy(true); setStatus("กำลังอ่าน PDF...");
+    body.append("file", fileInput.files[0]);
+    body.append("translate", $("translate").checked);
+    const btn = $("prepareBtn");
+    setBusy(btn, true); setStatus("prepStatus", "");
+    setProgress("prepProgress", "กำลังอัปโหลด", 0);
     try {
-      const res = await fetch("/api/extract", { method: "POST", body });
-      if (!res.ok) throw new Error(await errorMessage(res));
-      const data = await res.json();
-      $("preview").value = data.text;
-      $("meta").textContent = `(${data.pages} หน้า · ${data.characters.toLocaleString()} ตัวอักษร)`;
-      $("textCard").hidden = false;
-      setStatus("");
+      const job = await waitJob(await startJob("/api/prepare", body), (j) => setProgress("prepProgress", j.stage || "กำลังเริ่ม", j.progress));
+      showText(job.result);
+      setProgress("prepProgress", "เสร็จแล้ว", 100);
     } catch (err) {
-      setStatus(err.message, true);
+      setStatus("prepStatus", err.message, true);
+      $("prepProgress").hidden = true;
     } finally {
-      setBusy(false);
+      setBusy(btn, false);
     }
   });
 
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const body = new FormData(form);
-    setBusy(true); setStatus("กำลังแปลงเป็นเสียง อาจใช้เวลาหลายนาทีถ้าไฟล์ยาว...");
+  function showText(r) {
+    $("thaiText").value = r.text;
+    $("originalText").value = r.original;
+    const chips = [`${r.pages} หน้า`, `ต้นฉบับ${LANG[r.language] || ""}`, `${r.text.length.toLocaleString()} ตัวอักษร`];
+    if (r.ocr_pages) chips.push(`OCR ${r.ocr_pages} หน้า`);
+    if (r.translated) chips.push(`แปลด้วย ${TRANSLATOR[r.translator] || r.translator}`);
+    $("meta").innerHTML = "";
+    chips.forEach((t) => { const c = document.createElement("span"); c.className = "chip"; c.textContent = t; $("meta").append(c); });
+    $("tabs").hidden = !r.translated;
+    selectTab("thai");
+    $("textHint").textContent = r.translated
+      ? "คำแปลอัตโนมัติอาจมีจุดผิด ตรวจและแก้ได้ในแท็บภาษาไทยก่อนแปลงเสียง"
+      : "แก้ไขข้อความได้ก่อนแปลงเป็นเสียง";
+    $("s1").classList.add("done"); $("s1").textContent = "✓";
+    $("textCard").hidden = false; $("textCard").classList.add("reveal");
+    $("step2").classList.remove("locked");
+    $("textCard").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function selectTab(name) {
+    document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", t.dataset.tab === name));
+    $("thaiText").hidden = name !== "thai";
+    $("originalText").hidden = name !== "original";
+  }
+  $("tabs").addEventListener("click", (e) => { if (e.target.dataset.tab) selectTab(e.target.dataset.tab); });
+
+  // ---------- step 2: voices + demo ----------
+  function settings() {
+    return { rate: $("rate").value, pitch: $("pitch").value, volume: $("volume").value };
+  }
+
+  function stopDemo() {
+    demoAudio.pause();
+    document.querySelectorAll(".demo").forEach((b) => b.classList.remove("playing", "loading"));
+  }
+  demoAudio.addEventListener("ended", stopDemo);
+
+  async function playDemo(btn, voice) {
+    const wasPlaying = btn.classList.contains("playing");
+    stopDemo();
+    if (wasPlaying) return;
+    const s = settings();
+    btn.classList.add("loading");
+    demoAudio.src = `/api/voices/${voice}/demo?rate=${s.rate}&pitch=${s.pitch}&volume=${s.volume}`;
     try {
-      const res = await fetch("/api/convert", { method: "POST", body });
-      if (!res.ok) throw new Error(await errorMessage(res));
-      const url = URL.createObjectURL(await res.blob());
-      const name = $("file").files[0].name.replace(/\.pdf$/i, "") + ".mp3";
-      $("player").src = url;
-      $("download").href = url;
+      await demoAudio.play();
+      btn.classList.remove("loading"); btn.classList.add("playing");
+    } catch {
+      btn.classList.remove("loading");
+      setStatus("ttsStatus", "เล่นเสียงตัวอย่างไม่สำเร็จ", true);
+    }
+  }
+
+  async function loadVoices() {
+    const data = await (await fetch("/api/voices")).json();
+    for (const [id, name] of Object.entries(data.voices)) {
+      const [label, gender = ""] = name.split(/\s*\((.*)\)/);
+      const el = document.createElement("label");
+      el.className = "voice";
+      el.innerHTML = `
+        <input type="radio" name="voice" value="${id}" ${id === data.default ? "checked" : ""}>
+        <span class="avatar"></span>
+        <span class="voice-info"><span class="voice-name"></span><br><span class="voice-meta"></span></span>
+        <button type="button" class="demo">
+          <svg class="icon i-play" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          <svg class="icon i-stop" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
+          <span class="spinner"></span>
+        </button>`;
+      el.querySelector(".avatar").textContent = label.trim().replace(/^[เแโใไ]/, "").charAt(0);
+      el.querySelector(".voice-name").textContent = label.trim();
+      el.querySelector(".voice-meta").textContent = "เสียง" + gender + " · ภาษาไทย";
+      el.querySelector("input").dataset.label = label.trim();
+      const demo = el.querySelector(".demo");
+      demo.setAttribute("aria-label", "ฟังตัวอย่างเสียง " + label.trim());
+      demo.addEventListener("click", (e) => { e.preventDefault(); playDemo(demo, id); });
+      $("voices").append(el);
+    }
+  }
+
+  function updateSlider(el) {
+    const v = Number(el.value);
+    $(el.id + "Label").textContent = v === 0 ? "ปกติ" : (v > 0 ? "+" : "") + v + el.dataset.unit;
+    el.style.setProperty("--fill", ((v - el.min) / (el.max - el.min)) * 100 + "%");
+  }
+  ["rate", "pitch", "volume"].forEach((id) => {
+    $(id).addEventListener("input", (e) => updateSlider(e.target));
+    $(id).addEventListener("change", stopDemo);
+    updateSlider($(id));
+  });
+
+  // ---------- convert ----------
+  $("convertBtn").addEventListener("click", async () => {
+    const text = $("thaiText").value.trim();
+    if (!text) return setStatus("ttsStatus", "ไม่มีข้อความให้แปลงเป็นเสียง", true);
+    stopDemo();
+    const s = settings();
+    const voiceInput = document.querySelector("input[name=voice]:checked");
+    const body = new FormData();
+    body.append("text", text);
+    body.append("voice", voiceInput.value);
+    body.append("rate", s.rate); body.append("pitch", s.pitch); body.append("volume", s.volume);
+    body.append("name", baseName());
+
+    const btn = $("convertBtn");
+    const started = Date.now();
+    setBusy(btn, true); setStatus("ttsStatus", "");
+    setProgress("ttsProgress", "กำลังเริ่ม", 0);
+    try {
+      const job = await waitJob(await startJob("/api/synthesize", body), (j) => setProgress("ttsProgress", j.stage || "กำลังเริ่ม", j.progress));
+      setProgress("ttsProgress", "เสร็จแล้ว", 100);
+      const name = baseName() + ".mp3";
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+      audioUrl = URL.createObjectURL(await (await fetch(`/api/jobs/${job.id}/audio`)).blob());
+      $("player").src = audioUrl;
+      $("download").href = audioUrl;
       $("download").download = name;
-      $("audioCard").hidden = false;
-      setStatus("เสร็จแล้ว");
+      $("trackName").textContent = name;
+      $("trackMeta").textContent = `${voiceInput.dataset.label} · ความเร็ว ${$("rateLabel").textContent} · ${formatSize(job.result.size)}`;
+      const cloud = $("cloudLink");
+      cloud.hidden = !(job.result.url || job.result.upload_error);
+      cloud.innerHTML = "";
+      if (job.result.url) {
+        cloud.append("ลิงก์ถาวรบน Cloudinary: ");
+        const a = document.createElement("a"); a.href = job.result.url; a.target = "_blank"; a.rel = "noopener"; a.textContent = job.result.url;
+        cloud.append(a);
+      } else if (job.result.upload_error) {
+        cloud.textContent = job.result.upload_error;
+      }
+      $("audioCard").hidden = false; $("audioCard").classList.add("reveal");
+      $("audioCard").scrollIntoView({ behavior: "smooth", block: "nearest" });
+      const note = job.result.pitch_fallback ? " (บางช่วงบริการเสียงปรับระดับเสียงไม่สำเร็จ จึงใช้ระดับปกติแทน)" : "";
+      setStatus("ttsStatus", `เสร็จแล้ว ใช้เวลา ${Math.round((Date.now() - started) / 1000)} วินาที${note}`);
     } catch (err) {
-      setStatus(err.message, true);
+      setStatus("ttsStatus", err.message, true);
+      $("ttsProgress").hidden = true;
     } finally {
-      setBusy(false);
+      setBusy(btn, false);
     }
   });
 
-  loadVoices().catch(() => setStatus("โหลดรายชื่อเสียงไม่สำเร็จ", true));
+  loadVoices().catch(() => setStatus("ttsStatus", "โหลดรายชื่อเสียงไม่สำเร็จ", true));
 </script>
 </body>
 </html>

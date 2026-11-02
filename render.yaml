@@ -1,0 +1,22 @@
+# Render Blueprint: New > Blueprint แล้วเลือก repo นี้
+services:
+  - type: web
+    name: made-audio-novel
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: TRANSLATOR
+        value: auto
+      - key: TTS_VOICE
+        value: th-TH-PremwadeeNeural
+      - key: MAX_UPLOAD_MB
+        value: "20"
+      - key: MAX_PAGES
+        value: "50"
+      # ใส่ค่าเองใน Render Dashboard (ไม่บังคับ)
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: CLOUDINARY_URL
+        sync: false
