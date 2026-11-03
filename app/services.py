@@ -21,11 +21,12 @@ DEMO_TEXT = "สวัสดี นี่คือตัวอย่างเส
 TTS_CHUNK_CHARS = 800
 # ยิงขนานมากเกินไปบริการ Edge จะเริ่มตอบ "No audio" (ทดสอบแล้ว 3 กำลังดี)
 TTS_CONCURRENCY = int(os.getenv("TTS_CONCURRENCY", "3"))
-TRANSLATE_CHUNK_CHARS = {"claude": 6000, "google": 4500}
-TRANSLATE_CONCURRENCY = {"claude": 4, "google": 2}
+TRANSLATE_CHUNK_CHARS = {"claude": 6000, "gemini": 6000, "google": 4500}
+TRANSLATE_CONCURRENCY = {"claude": 4, "gemini": 4, "google": 2}
 HPLT_BATCH = 16
 
 CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-opus-5-5")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 HPLT_MODEL_DIR = Path(os.getenv("HPLT_MODEL_DIR", Path(__file__).parent.parent / "models" / "hplt-en-th"))
 OCR_LANGUAGES = os.getenv("OCR_LANGUAGES", "tha+eng")
 
@@ -216,12 +217,14 @@ def hplt_available() -> bool:
 
 
 def translator_name() -> str:
-    """claude | hplt | google  (ตั้งเองด้วย TRANSLATOR หรือ auto: claude ถ้ามี key, ไม่งั้น hplt ถ้ามีโมเดล)"""
+    """claude | gemini | hplt | google (ตั้งเองด้วย TRANSLATOR หรือ auto)"""
     choice = os.getenv("TRANSLATOR", "auto").lower()
-    if choice in ("claude", "hplt", "google"):
+    if choice in ("claude", "gemini", "hplt", "google"):
         return choice
     if os.getenv("ANTHROPIC_API_KEY") or os.getenv("ANTHROPIC_AUTH_TOKEN"):
         return "claude"
+    if os.getenv("GEMINI_API_KEY"):
+        return "gemini"
     return "hplt" if hplt_available() else "google"
 
 
@@ -270,6 +273,42 @@ async def _translate_google(chunk: str) -> str:
         raise TranslateError("Google Translate (ฟรี) จำกัดการใช้งานจากเครื่องนี้อยู่ ลองเปลี่ยน TRANSLATOR เป็น hplt") from exc
     except Exception as exc:
         raise TranslateError(f"แปลด้วย Google ไม่สำเร็จ: {exc}") from exc
+
+
+_GEMINI_SYSTEM = (
+    "You translate novels into natural, fluent Thai for an audiobook narrator. "
+    "Keep the meaning, tone, dialogue and paragraph breaks. Transliterate character "
+    "and place names into Thai script. Output only the Thai translation, with no notes."
+)
+
+
+async def _translate_gemini(chunk: str) -> str:
+    from google import genai
+    from google.genai import types
+
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise TranslateError("ยังไม่ได้ตั้งค่า GEMINI_API_KEY")
+
+    client = genai.Client(api_key=api_key)
+    try:
+        response = await client.aio.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=chunk,
+            config=types.GenerateContentConfig(
+                system_instruction=_GEMINI_SYSTEM,
+                temperature=0.2,
+            ),
+        )
+    except Exception as exc:
+        raise TranslateError(f"Gemini API แปลไม่สำเร็จ: {exc}") from exc
+    finally:
+        await client.aio.aclose()
+
+    result = (response.text or "").strip()
+    if not result:
+        raise TranslateError("Gemini API ไม่ได้ส่งคำแปลกลับมา")
+    return result
 
 
 class _Hplt:
@@ -324,7 +363,11 @@ async def translate_to_thai(text: str, on_progress: Progress | None = None) -> s
     if name == "hplt":
         result = await _translate_hplt(text, on_progress)
     else:
-        worker = _translate_claude if name == "claude" else _translate_google
+        worker = {
+            "claude": _translate_claude,
+            "gemini": _translate_gemini,
+            "google": _translate_google,
+        }[name]
         chunks = split_text(text, TRANSLATE_CHUNK_CHARS[name])
         result = "\n\n".join(await _map_with_progress(chunks, worker, TRANSLATE_CONCURRENCY[name], on_progress))
     return normalize_thai(result)

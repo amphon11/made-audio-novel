@@ -3,7 +3,7 @@
 เว็บแอปแปลงนิยาย PDF/TXT หรือข้อความที่วางเอง เป็นหนังสือเสียงภาษาไทย (MP3)
 
 - ดึงข้อความจาก PDF ด้วย [PyMuPDF](https://pymupdf.readthedocs.io/) และ OCR หน้าสแกนด้วย Tesseract (ไทย + อังกฤษ)
-- แปลอังกฤษ → ไทยอัตโนมัติ เลือกตัวแปลได้ 3 แบบ (ดูด้านล่าง) และตรวจแก้คำแปลบนหน้าเว็บก่อนแปลงเสียง
+- แปลอังกฤษ → ไทยอัตโนมัติ เลือกตัวแปลได้ 4 แบบ (ดูด้านล่าง) และตรวจแก้คำแปลบนหน้าเว็บก่อนแปลงเสียง
 - แปลงเป็นเสียงด้วย [edge-tts](https://github.com/rany2/edge-tts) เสียงไทย เปรมวดี / นิวัฒน์ ปรับความเร็ว ระดับเสียง ความดังได้ และกดฟังตัวอย่างเสียงก่อนได้
 - แสดงความคืบหน้าเป็น % ทั้งตอนอ่าน/แปล และตอนแปลงเสียง
 - เก็บไฟล์ MP3 บน [Cloudinary](https://cloudinary.com/documentation/audio_transformations) (ไม่บังคับ)
@@ -14,8 +14,9 @@
 |---|---|---|
 | `hplt` | [HPLT en→th](https://huggingface.co/HPLT/translate-en-th-v2.0-hplt_opus) (Marian → CTranslate2 int8, ~80 MB) | ฟรี ออฟไลน์ เร็ว คุณภาพพอใช้ บางประโยคแปลตรงตัว |
 | `claude` | Claude API (`claude-opus-5-5`) | แปลนิยายได้ลื่นที่สุด ต้องมี `ANTHROPIC_API_KEY` มีค่าใช้จ่าย |
+| `gemini` | Gemini API (`gemini-2.5-flash`) | ต้องมี `GEMINI_API_KEY` มีโควตา/ค่าใช้จ่ายตาม Google AI |
 | `google` | Google Translate แบบฟรีผ่าน deep-translator | ถูกจำกัดอัตราง่าย ไม่แนะนำ |
-| `auto` (ค่าเริ่มต้น) | claude ถ้ามี key → hplt ถ้ามีโมเดล → google | |
+| `auto` (ค่าเริ่มต้น) | claude → gemini → hplt → google ตาม key/โมเดลที่มี | |
 
 ## โครงสร้าง
 
@@ -62,7 +63,7 @@ OCR ในเครื่องต้องติดตั้ง [Tesseract](htt
 ## Deploy บน Render
 
 1. Render Dashboard → **New → Blueprint** → เลือก repo นี้ (ใช้ `render.yaml`)
-2. ตั้ง `ANTHROPIC_API_KEY` และ/หรือ `CLOUDINARY_URL` ถ้าต้องการ
+2. ตั้ง `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` และ/หรือ `CLOUDINARY_URL` ถ้าต้องการ
 3. ใช้ plan ตั้งแต่ Starter ขึ้นไป เพราะ plan ฟรี RAM ไม่พอสำหรับโมเดลแปล + OCR
 
 หรือรัน Docker เอง:
@@ -134,6 +135,7 @@ docker run -p 8000:8000 --env-file .env made-audio-novel
 - **HPLT เป็นตัวแปลเริ่มต้น** — ฟรี ออฟไลน์ ไม่ติด rate limit; ไม่มีเวอร์ชัน Hugging Face Transformers จึงแปลงไฟล์ Marian เป็น CTranslate2 เอง (`scripts/prepare_hplt.py`) แทนการคอมไพล์ MarianNMT · OPUS-MT ทางการไม่มี en→th (มีแต่ th→en)
 - **ไม่ใช้ Google ฟรีเป็นหลัก** — โดน 429 ตั้งแต่ request แรกจาก IP ของเครื่อง dev
 - **Claude เป็นตัวเลือกเสริม** — คุณภาพแปลนิยายดีที่สุด แต่ต้องมี key และมีค่าใช้จ่าย เปิดอัตโนมัติเมื่อมี `ANTHROPIC_API_KEY`
+- **Gemini เป็นตัวเลือกเสริม** — ใช้ `gemini-2.5-flash` เมื่อมี `GEMINI_API_KEY` และเลือก `TRANSLATOR=gemini` หรือปล่อยให้ `auto` เลือก
 - **TTS แบ่งก้อน 800 ตัวอักษร ขนาน 3** — ขนาน 4-8 ทำให้บริการ Edge ตอบ "No audio"
 - **ตัดประโยคไม่ตัดกลางเครื่องหมายคำพูด** — ตัดกลางแล้ว HPLT ใส่สัญลักษณ์แปลก (`·`)
 - **`normalize_thai`** — แก้ `ํา` → `ำ` และช่องว่างก่อนวรรณยุกต์ที่ HPLT ใส่มา ไม่งั้น TTS อ่านเพี้ยน
