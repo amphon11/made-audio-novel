@@ -8,6 +8,7 @@ import threading
 import time
 import subprocess
 import tempfile
+import urllib.request
 from collections.abc import Callable
 from pathlib import Path
 
@@ -25,11 +26,16 @@ TTS_CHUNK_CHARS = 800
 # ยิงขนานมากเกินไปบริการ Edge จะเริ่มตอบ "No audio" (ทดสอบแล้ว 3 กำลังดี)
 TTS_CONCURRENCY = int(os.getenv("TTS_CONCURRENCY", "3"))
 TTS_PROVIDER = os.getenv("TTS_PROVIDER", "edge").lower()
-F5_MODEL = os.getenv("F5_MODEL", "F5TTS_v1_Base")
-F5_CKPT_FILE = os.getenv("F5_CKPT_FILE", "")
-F5_VOCAB_FILE = os.getenv("F5_VOCAB_FILE", "")
-F5_REFERENCE_AUDIO = os.getenv("F5_REFERENCE_AUDIO", "")
-F5_REFERENCE_TEXT = os.getenv("F5_REFERENCE_TEXT", "")
+F5_MODEL = os.getenv("F5_MODEL", "v1")
+F5_REFERENCE_AUDIO = os.getenv(
+    "F5_REFERENCE_AUDIO",
+    "https://huggingface.co/VIZINTZOR/F5-TTS-THAI/resolve/main/sample/ref_audio.wav",
+)
+F5_REFERENCE_TEXT = os.getenv(
+    "F5_REFERENCE_TEXT",
+    "ฉันเดินทางไปเที่ยวที่จังหวัดเชียงใหม่ในช่วงฤดูหนาวเพื่อสัมผัสอากาศเย็นสบาย",
+)
+F5_CACHE_DIR = Path(os.getenv("F5_CACHE_DIR", Path(__file__).parent.parent / "models" / "f5-thai"))
 TRANSLATE_CHUNK_CHARS = {"claude": 6000, "gemini": 6000, "google": 4500}
 TRANSLATE_CONCURRENCY = {"claude": 4, "gemini": 1, "google": 2}
 HPLT_BATCH = 16
@@ -472,29 +478,40 @@ _f5_lock = asyncio.Lock()
 
 
 def _f5_generate(text: str) -> bytes:
-    if not F5_REFERENCE_AUDIO or not Path(F5_REFERENCE_AUDIO).is_file():
-        raise RuntimeError("ไม่พบ F5_REFERENCE_AUDIO กรุณาตั้งค่าไฟล์เสียงอ้างอิง")
     if not F5_REFERENCE_TEXT.strip():
         raise RuntimeError("กรุณาตั้งค่า F5_REFERENCE_TEXT ให้ตรงกับเสียงอ้างอิง")
     try:
-        from f5_tts.api import F5TTS
+        from f5_tts_th.tts import TTS
         import soundfile as sf
     except ImportError as exc:
-        raise RuntimeError("ยังไม่ได้ติดตั้ง F5-TTS กรุณาใช้ requirements-f5.txt") from exc
+        raise RuntimeError("ยังไม่ได้ติดตั้ง F5-TTS ภาษาไทย กรุณาใช้ requirements-f5.txt") from exc
 
     global _f5_model
     if _f5_model is None:
-        _f5_model = F5TTS(model=F5_MODEL, ckpt_file=F5_CKPT_FILE, vocab_file=F5_VOCAB_FILE)
+        _f5_model = TTS(model=F5_MODEL)
+    F5_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    reference_audio = F5_REFERENCE_AUDIO
+    if reference_audio.startswith(("http://", "https://")):
+        reference_path = F5_CACHE_DIR / "reference.wav"
+        if not reference_path.is_file():
+            try:
+                urllib.request.urlretrieve(reference_audio, reference_path)
+            except Exception as exc:
+                raise RuntimeError(f"ดาวน์โหลดเสียงอ้างอิง F5-TTS ไม่สำเร็จ: {exc}") from exc
+        reference_audio = str(reference_path)
+    elif not Path(reference_audio).is_file():
+        raise RuntimeError(f"ไม่พบไฟล์เสียงอ้างอิง F5-TTS: {reference_audio}")
     with tempfile.TemporaryDirectory() as directory:
         wav_path = Path(directory) / "output.wav"
-        wav, sample_rate, _ = _f5_model.infer(
-            ref_file=F5_REFERENCE_AUDIO,
+        wav = _f5_model.infer(
+            ref_audio=reference_audio,
             ref_text=F5_REFERENCE_TEXT,
             gen_text=text,
-            file_wave=str(wav_path),
+            step=32,
+            cfg=2.0,
+            speed=1.0,
         )
-        if not wav_path.is_file():
-            sf.write(wav_path, wav, sample_rate)
+        sf.write(wav_path, wav, 24000)
         mp3_path = Path(directory) / "output.mp3"
         try:
             subprocess.run(

@@ -70,18 +70,17 @@ Edge TTS เป็นค่าเริ่มต้นและไม่ต้�
 pip install -r requirements-f5.txt
 ```
 
-จากนั้นติดตั้ง `ffmpeg` และเตรียมโมเดล F5-TTS-THAI พร้อมไฟล์เสียงอ้างอิงคงที่บนเซิร์ฟเวอร์ แล้วตั้งค่าใน `.env`:
+จากนั้นติดตั้ง `ffmpeg` แล้วตั้งค่าใน `.env` ได้เลย ระบบจะดาวน์โหลดโมเดลภาษาไทยและไฟล์เสียงอ้างอิงตัวอย่างจาก [VIZINTZOR/F5-TTS-THAI](https://huggingface.co/VIZINTZOR/F5-TTS-THAI) อัตโนมัติ:
 
 ```env
-TTS_PROVIDER=edge
-F5_MODEL=F5TTS_v1_Base
-F5_CKPT_FILE=models/f5-thai/model.safetensors
-F5_VOCAB_FILE=models/f5-thai/vocab.txt
-F5_REFERENCE_AUDIO=models/f5-thai/reference.wav
-F5_REFERENCE_TEXT=ข้อความที่พูดอยู่ใน reference.wav
+TTS_PROVIDER=f5
+F5_MODEL=v1
+F5_REFERENCE_AUDIO=https://huggingface.co/VIZINTZOR/F5-TTS-THAI/resolve/main/sample/ref_audio.wav
+F5_REFERENCE_TEXT=ฉันเดินทางไปเที่ยวที่จังหวัดเชียงใหม่ในช่วงฤดูหนาวเพื่อสัมผัสอากาศเย็นสบาย
+F5_CACHE_DIR=models/f5-thai
 ```
 
-เลือก `F5-TTS-THAI` จากหน้าเว็บเพื่อใช้งาน โมเดลจะถูกโหลดครั้งแรกที่มีการสร้างเสียงและเก็บไว้ในหน่วยความจำ การใช้ F5-TTS ต้องมีไฟล์เสียงอ้างอิงและ transcript ที่ตรงกัน และเหมาะกับเครื่องที่มี GPU มากกว่า CPU
+เลือก `F5-TTS-THAI` จากหน้าเว็บเพื่อใช้งาน โมเดลและเสียงอ้างอิงจะถูกโหลดครั้งแรกที่มีการสร้างเสียงและเก็บไว้ในหน่วยความจำ การใช้ F5-TTS ยังอาศัยเสียงอ้างอิงภายในระบบ แต่ผู้ใช้ไม่ต้องอัปโหลดเอง และเหมาะกับเครื่องที่มี GPU มากกว่า CPU
 
 ## Deploy บน Render
 
