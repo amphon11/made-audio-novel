@@ -1,6 +1,6 @@
 # made-audio-novel
 
-เว็บแอปแปลงนิยาย PDF/TXT หรือข้อความที่วางเอง เป็นหนังสือเสียงภาษาไทย (MP3)
+เว็บแอปแปลงนิยาย PDF/TXT หรือข้อความที่กรอกเอง เป็นหนังสือเสียงภาษาไทย (MP3)
 
 - ดึงข้อความจาก PDF ด้วย [PyMuPDF](https://pymupdf.readthedocs.io/) และ OCR หน้าสแกนด้วย Tesseract (ไทย + อังกฤษ)
 - แปลอังกฤษ → ไทยอัตโนมัติ เลือกตัวแปลได้ 4 แบบ (ดูด้านล่าง) และตรวจแก้คำแปลบนหน้าเว็บก่อนแปลงเสียง
@@ -80,7 +80,7 @@ docker run -p 8000:8000 --env-file .env made-audio-novel
 | GET | `/health` | สถานะ + ตัวแปลที่ใช้ + มี OCR/Cloudinary ไหม |
 | GET | `/api/voices` | รายชื่อเสียงภาษาไทย |
 | GET | `/api/voices/{voice}/demo?rate=&pitch=&volume=` | MP3 ตัวอย่างเสียงสั้น ๆ |
-| POST | `/api/prepare` | `file` (PDF/TXT) หรือ `text` (ข้อความที่วางเอง), `translate` (true/false) → job · `text` จะไม่ถูกแปล |
+| POST | `/api/prepare` | `file` (PDF/TXT) หรือ `text` (ข้อความที่กรอกเอง), `translate` (true/false) → job · `text` จะไม่ถูกแปล |
 | POST | `/api/synthesize` | `text`, `voice`, `rate` (-50..100), `pitch` (-50..50 Hz), `volume` (-50..50), `name` → job |
 | GET | `/api/jobs/{id}` | `status`, `stage`, `progress` (0-100), `result` |
 | GET | `/api/jobs/{id}/audio` | ไฟล์ MP3 ของงานที่เสร็จแล้ว |

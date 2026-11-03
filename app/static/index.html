@@ -319,16 +319,26 @@
         <span class="spinner"></span>อ่านและแปลข้อความ
       </button>
     </div>
-    <p class="hint" style="margin-top:16px">หรือวางข้อความเอง (จะไม่แปลอัตโนมัติ)</p>
-    <textarea id="pastedText" aria-label="วางข้อความเอง" placeholder="วางข้อความที่ต้องการแปลงเป็นเสียงที่นี่"></textarea>
-    <div class="actions">
-      <button type="button" id="pasteBtn" class="btn ghost">ใช้ข้อความนี้โดยไม่แปล</button>
-    </div>
     <div class="progress-wrap" id="prepProgress" hidden>
       <div class="progress-meta"><span class="progress-stage"></span><span class="progress-pct">0%</span></div>
       <div class="bar"><span></span></div>
     </div>
     <p class="status" id="prepStatus" role="status" aria-live="polite"></p>
+  </section>
+
+  <!-- DIRECT TEXT INPUT -->
+  <section class="card" id="directTextCard">
+    <p class="section-title"><span class="step">1</span>กรอกข้อความเอง</p>
+    <p class="hint">พิมพ์หรือวางข้อความโดยตรงได้เลย ระบบจะไม่แปลข้อความนี้</p>
+    <textarea id="pastedText" aria-label="กรอกข้อความเอง" placeholder="พิมพ์หรือวางข้อความที่ต้องการแปลงเป็นเสียงที่นี่"></textarea>
+    <div class="actions">
+      <button type="button" id="pasteBtn" class="primary">เริ่มจากข้อความนี้</button>
+    </div>
+    <div class="progress-wrap" id="directProgress" hidden>
+      <div class="progress-meta"><span class="progress-stage"></span><span class="progress-pct">0%</span></div>
+      <div class="bar"><span></span></div>
+    </div>
+    <p class="status" id="directTextStatus" role="status" aria-live="polite"></p>
   </section>
 
   <!-- TEXT -->
@@ -505,20 +515,20 @@
 
   $("pasteBtn").addEventListener("click", async () => {
     const pasted = $("pastedText").value.trim();
-    if (!pasted) return setStatus("prepStatus", "กรุณาวางข้อความก่อน", true);
+    if (!pasted) return setStatus("directTextStatus", "กรุณากรอกหรือวางข้อความก่อน", true);
     const body = new FormData();
     body.append("text", pasted);
     body.append("translate", "false");
     const btn = $("pasteBtn");
-    setBusy(btn, true); setStatus("prepStatus", "");
-    setProgress("prepProgress", "กำลังอ่านข้อความ", 0);
+    setBusy(btn, true); setStatus("directTextStatus", "");
+    setProgress("directProgress", "กำลังอ่านข้อความ", 0);
     try {
-      const job = await waitJob(await startJob("/api/prepare", body), (j) => setProgress("prepProgress", j.stage || "กำลังเริ่ม", j.progress));
+      const job = await waitJob(await startJob("/api/prepare", body), (j) => setProgress("directProgress", j.stage || "กำลังเริ่ม", j.progress));
       showText(job.result);
-      setProgress("prepProgress", "เสร็จแล้ว", 100);
+      setProgress("directProgress", "เสร็จแล้ว", 100);
     } catch (err) {
-      setStatus("prepStatus", err.message, true);
-      $("prepProgress").hidden = true;
+      setStatus("directTextStatus", err.message, true);
+      $("directProgress").hidden = true;
     } finally {
       setBusy(btn, false);
     }
