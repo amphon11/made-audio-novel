@@ -472,5 +472,9 @@ async def upload_audio(audio: bytes, name: str) -> str:
         buffer,
         resource_type="video",
         folder=os.getenv("CLOUDINARY_FOLDER", "made-audio-novel"),
+        public_id=name,
+        use_filename=False,
+        unique_filename=False,
+        overwrite=True,
     )
     return result["secure_url"]

@@ -217,7 +217,7 @@ async def synthesize_job(
         if upload:
             job.update("กำลังอัปโหลดขึ้น Cloudinary", 95)
             try:
-                job.result["url"] = await upload_audio(job.audio, Path(name).stem)
+                job.result["url"] = await upload_audio(job.audio, name)
             except Exception as exc:
                 job.result["upload_error"] = f"อัปโหลด Cloudinary ไม่สำเร็จ: {exc}"
 
