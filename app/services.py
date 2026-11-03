@@ -6,6 +6,8 @@ import os
 import re
 import threading
 import time
+import subprocess
+import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
@@ -22,6 +24,12 @@ DEMO_TEXT = "สวัสดี นี่คือตัวอย่างเส
 TTS_CHUNK_CHARS = 800
 # ยิงขนานมากเกินไปบริการ Edge จะเริ่มตอบ "No audio" (ทดสอบแล้ว 3 กำลังดี)
 TTS_CONCURRENCY = int(os.getenv("TTS_CONCURRENCY", "3"))
+TTS_PROVIDER = os.getenv("TTS_PROVIDER", "edge").lower()
+F5_MODEL = os.getenv("F5_MODEL", "F5TTS_v1_Base")
+F5_CKPT_FILE = os.getenv("F5_CKPT_FILE", "")
+F5_VOCAB_FILE = os.getenv("F5_VOCAB_FILE", "")
+F5_REFERENCE_AUDIO = os.getenv("F5_REFERENCE_AUDIO", "")
+F5_REFERENCE_TEXT = os.getenv("F5_REFERENCE_TEXT", "")
 TRANSLATE_CHUNK_CHARS = {"claude": 6000, "gemini": 6000, "google": 4500}
 TRANSLATE_CONCURRENCY = {"claude": 4, "gemini": 1, "google": 2}
 HPLT_BATCH = 16
@@ -440,8 +448,13 @@ async def synthesize(
     pitch: int = 0,
     volume: int = 0,
     on_progress: Progress | None = None,
+    provider: str = TTS_PROVIDER,
 ) -> tuple[bytes, bool]:
     """แปลงข้อความเป็น MP3; rate/volume เป็น %, pitch เป็น Hz คืน (เสียง, มีบางช่วงที่ใช้ pitch ปกติแทน)"""
+    if provider == "f5":
+        return await _synthesize_f5(text, on_progress), False
+    if provider != "edge":
+        raise ValueError(f"TTS_PROVIDER ไม่ถูกต้อง: {provider} (ใช้ edge หรือ f5)")
     if voice not in THAI_VOICES:
         raise ValueError(f"ไม่รู้จักเสียง {voice}")
     chunks = [c for c in split_text(tts_text(text), TTS_CHUNK_CHARS) if re.search(rf"[{_THAI}A-Za-z0-9]", c)]
@@ -452,6 +465,62 @@ async def synthesize(
     )
     # edge-tts ส่ง MP3 frame ดิบที่ bitrate เดียวกัน จึงต่อไฟล์กันตรง ๆ ได้
     return b"".join(audio for audio, _ in parts), any(fallback for _, fallback in parts)
+
+
+_f5_model = None
+_f5_lock = asyncio.Lock()
+
+
+def _f5_generate(text: str) -> bytes:
+    if not F5_REFERENCE_AUDIO or not Path(F5_REFERENCE_AUDIO).is_file():
+        raise RuntimeError("ไม่พบ F5_REFERENCE_AUDIO กรุณาตั้งค่าไฟล์เสียงอ้างอิง")
+    if not F5_REFERENCE_TEXT.strip():
+        raise RuntimeError("กรุณาตั้งค่า F5_REFERENCE_TEXT ให้ตรงกับเสียงอ้างอิง")
+    try:
+        from f5_tts.api import F5TTS
+        import soundfile as sf
+    except ImportError as exc:
+        raise RuntimeError("ยังไม่ได้ติดตั้ง F5-TTS กรุณาใช้ requirements-f5.txt") from exc
+
+    global _f5_model
+    if _f5_model is None:
+        _f5_model = F5TTS(model=F5_MODEL, ckpt_file=F5_CKPT_FILE, vocab_file=F5_VOCAB_FILE)
+    with tempfile.TemporaryDirectory() as directory:
+        wav_path = Path(directory) / "output.wav"
+        wav, sample_rate, _ = _f5_model.infer(
+            ref_file=F5_REFERENCE_AUDIO,
+            ref_text=F5_REFERENCE_TEXT,
+            gen_text=text,
+            file_wave=str(wav_path),
+        )
+        if not wav_path.is_file():
+            sf.write(wav_path, wav, sample_rate)
+        mp3_path = Path(directory) / "output.mp3"
+        try:
+            subprocess.run(
+                ["ffmpeg", "-y", "-loglevel", "error", "-i", str(wav_path), str(mp3_path)],
+                check=True,
+                capture_output=True,
+            )
+        except FileNotFoundError as exc:
+            raise RuntimeError("ไม่พบ ffmpeg ซึ่งจำเป็นสำหรับสร้าง MP3 จาก F5-TTS") from exc
+        except subprocess.CalledProcessError as exc:
+            detail = exc.stderr.decode(errors="replace")
+            raise RuntimeError(f"แปลงเสียง F5-TTS เป็น MP3 ไม่สำเร็จ: {detail}") from exc
+        return mp3_path.read_bytes()
+
+
+async def _synthesize_f5(text: str, on_progress: Progress | None) -> bytes:
+    chunks = [c for c in split_text(tts_text(text), TTS_CHUNK_CHARS) if re.search(rf"[{_THAI}A-Za-z0-9]", c)]
+    if not chunks:
+        raise ValueError("ไม่มีข้อความที่อ่านออกเสียงได้")
+    parts = []
+    for index, chunk in enumerate(chunks):
+        async with _f5_lock:
+            parts.append(await asyncio.to_thread(_f5_generate, chunk))
+        if on_progress:
+            on_progress((index + 1) / len(chunks))
+    return b"".join(parts)
 
 
 # ---------- Cloudinary ----------

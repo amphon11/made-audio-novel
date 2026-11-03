@@ -253,6 +253,8 @@
       background: var(--surface-solid); border: 1px solid var(--border); border-radius: 12px;
     }
     .text-input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+    .field-label { display: block; margin: 18px 0 7px; font-size: .9rem; font-weight: 600; }
+    select.text-input { appearance: auto; }
     .hint { font-size: .8rem; color: var(--muted); margin: 8px 0 0; }
 
     /* Player */
@@ -364,6 +366,12 @@
     <div class="block">
       <p class="section-title"><span class="step">2</span>เลือกเสียงผู้อ่าน<span class="voice-meta" style="font-weight:400">· กด ▶ เพื่อฟังตัวอย่าง</span></p>
       <div class="voices" id="voices" role="radiogroup" aria-label="เสียงผู้อ่าน"></div>
+      <label class="field-label" for="ttsProvider">ระบบแปลงเสียง</label>
+      <select id="ttsProvider" class="text-input">
+        <option value="edge">Edge TTS (ออนไลน์)</option>
+        <option value="f5">F5-TTS-THAI (เครื่องนี้)</option>
+      </select>
+      <p class="hint">F5-TTS ต้องติดตั้งโมเดล ไฟล์เสียงอ้างอิง และ ffmpeg บนเซิร์ฟเวอร์ก่อน</p>
     </div>
 
     <div class="block">
@@ -637,6 +645,8 @@
       demo.addEventListener("click", (e) => { e.preventDefault(); playDemo(demo, id); });
       $("voices").append(el);
     }
+    const health = await (await fetch("/health")).json();
+    $("ttsProvider").value = health.tts_provider === "f5" ? "f5" : "edge";
   }
 
   function updateSlider(el) {
@@ -662,6 +672,7 @@
     body.append("voice", voiceInput.value);
     body.append("rate", s.rate); body.append("pitch", s.pitch); body.append("volume", s.volume);
     body.append("name", baseName());
+    body.append("tts_provider", $("ttsProvider").value);
 
     const btn = $("convertBtn");
     const started = Date.now();
@@ -677,7 +688,8 @@
       $("download").href = audioUrl;
       $("download").download = name;
       $("trackName").textContent = name;
-      $("trackMeta").textContent = `${voiceInput.dataset.label} · ความเร็ว ${$("rateLabel").textContent} · ${formatSize(job.result.size)}`;
+      const providerLabel = $("ttsProvider").selectedOptions[0].textContent;
+      $("trackMeta").textContent = `${providerLabel} · ${voiceInput.dataset.label} · ความเร็ว ${$("rateLabel").textContent} · ${formatSize(job.result.size)}`;
       const cloud = $("cloudLink");
       cloud.hidden = !(job.result.url || job.result.upload_error);
       cloud.innerHTML = "";

@@ -5,7 +5,7 @@
 - ดึงข้อความจาก PDF ด้วย [PyMuPDF](https://pymupdf.readthedocs.io/) และ OCR หน้าสแกนด้วย Tesseract (ไทย + อังกฤษ)
 - แปลอังกฤษ → ไทยอัตโนมัติ เลือกตัวแปลได้ 4 แบบ (ดูด้านล่าง) และตรวจแก้คำแปลบนหน้าเว็บก่อนแปลงเสียง
 - ปิดตัวเลือกแปลภาษาได้เพื่อดึงข้อความจาก PDF/TXT แล้วนำไปแปลงเสียงทันทีโดยคงภาษาต้นฉบับ
-- แปลงเป็นเสียงด้วย [edge-tts](https://github.com/rany2/edge-tts) เสียงไทย เปรมวดี / นิวัฒน์ ปรับความเร็ว ระดับเสียง ความดังได้ และกดฟังตัวอย่างเสียงก่อนได้
+- แปลงเป็นเสียงด้วย [edge-tts](https://github.com/rany2/edge-tts) หรือ [F5-TTS](https://github.com/SWivid/F5-TTS) โดยเลือกได้จากหน้าเว็บ
 - ตั้งชื่อไฟล์ MP3 เองได้ หรือใช้ชื่อไฟล์ input เป็นค่าเริ่มต้น โดยชื่อเดียวกันจะถูกใช้เป็น Cloudinary `public_id`
 - แสดงความคืบหน้าเป็น % ทั้งตอนอ่าน/แปล และตอนแปลงเสียง
 - เก็บไฟล์ MP3 บน [Cloudinary](https://cloudinary.com/documentation/audio_transformations) (ไม่บังคับ)
@@ -62,6 +62,27 @@ uvicorn app.main:app --reload
 
 OCR ในเครื่องต้องติดตั้ง [Tesseract](https://github.com/tesseract-ocr/tesseract) พร้อมภาษา `tha` และ `eng` เอง (ใน Docker มีให้แล้ว)
 
+### เปิดใช้ F5-TTS
+
+Edge TTS เป็นค่าเริ่มต้นและไม่ต้องใช้โมเดลเสียงในเครื่อง หากต้องการใช้ F5-TTS ให้ติดตั้งส่วนเสริม:
+
+```bash
+pip install -r requirements-f5.txt
+```
+
+จากนั้นติดตั้ง `ffmpeg` และเตรียมโมเดล F5-TTS-THAI พร้อมไฟล์เสียงอ้างอิงคงที่บนเซิร์ฟเวอร์ แล้วตั้งค่าใน `.env`:
+
+```env
+TTS_PROVIDER=edge
+F5_MODEL=F5TTS_v1_Base
+F5_CKPT_FILE=models/f5-thai/model.safetensors
+F5_VOCAB_FILE=models/f5-thai/vocab.txt
+F5_REFERENCE_AUDIO=models/f5-thai/reference.wav
+F5_REFERENCE_TEXT=ข้อความที่พูดอยู่ใน reference.wav
+```
+
+เลือก `F5-TTS-THAI` จากหน้าเว็บเพื่อใช้งาน โมเดลจะถูกโหลดครั้งแรกที่มีการสร้างเสียงและเก็บไว้ในหน่วยความจำ การใช้ F5-TTS ต้องมีไฟล์เสียงอ้างอิงและ transcript ที่ตรงกัน และเหมาะกับเครื่องที่มี GPU มากกว่า CPU
+
 ## Deploy บน Render
 
 1. Render Dashboard → **New → Blueprint** → เลือก repo นี้ (ใช้ `render.yaml`)
@@ -83,7 +104,7 @@ docker run -p 8000:8000 --env-file .env made-audio-novel
 | GET | `/api/voices` | รายชื่อเสียงภาษาไทย |
 | GET | `/api/voices/{voice}/demo?rate=&pitch=&volume=` | MP3 ตัวอย่างเสียงสั้น ๆ |
 | POST | `/api/prepare` | `file` (PDF/TXT) หรือ `text` (ข้อความที่กรอกเอง), `translate` (true/false) → job · `text` จะไม่ถูกแปล |
-| POST | `/api/synthesize` | `text`, `voice`, `rate` (-50..100), `pitch` (-50..50 Hz), `volume` (-50..50), `name` → job |
+| POST | `/api/synthesize` | `text`, `voice`, `rate` (-50..100), `pitch` (-50..50 Hz), `volume` (-50..50), `name`, `tts_provider` (`edge`/`f5`) → job |
 | GET | `/api/jobs/{id}` | `status`, `stage`, `progress` (0-100), `result` |
 | GET | `/api/jobs/{id}/audio` | ไฟล์ MP3 ของงานที่เสร็จแล้ว |
 

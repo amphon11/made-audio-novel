@@ -24,6 +24,7 @@ from .services import (  # noqa: E402
     hplt_available,
     ocr_available,
     synthesize,
+    TTS_PROVIDER,
     translate_to_thai,
     translator_name,
     upload_audio,
@@ -97,6 +98,7 @@ def health():
         "status": "ok",
         "version": __version__,
         "translator": translator_name(),
+        "tts_provider": TTS_PROVIDER,
         "hplt_model": hplt_available(),
         "ocr": ocr_available(),
         "cloudinary": cloudinary_enabled(),
@@ -195,10 +197,14 @@ async def synthesize_job(
     pitch: int = Form(0),
     volume: int = Form(0),
     name: str = Form("audio"),
+    tts_provider: str = Form(TTS_PROVIDER),
 ):
     """แปลงข้อความเป็น MP3 ติดตามผลที่ /api/jobs/{id} แล้วโหลดเสียงที่ /api/jobs/{id}/audio"""
     name = safe_audio_name(name)
-    _check_voice(voice, rate, pitch, volume)
+    if tts_provider == "edge":
+        _check_voice(voice, rate, pitch, volume)
+    elif tts_provider != "f5":
+        raise HTTPException(400, f"TTS_PROVIDER ไม่ถูกต้อง: {tts_provider}")
     text = text.strip()
     if not text:
         raise HTTPException(400, "ไม่มีข้อความให้แปลงเป็นเสียง")
@@ -211,7 +217,7 @@ async def synthesize_job(
         upload = cloudinary_enabled()
         scale = 95 if upload else 100
         job.audio, pitch_fallback = await synthesize(
-            text, voice, rate, pitch, volume, lambda p: job.update(stage, p * scale)
+            text, voice, rate, pitch, volume, lambda p: job.update(stage, p * scale), tts_provider
         )
         job.result = {"size": len(job.audio), "url": None, "pitch_fallback": pitch_fallback}
         if upload:
