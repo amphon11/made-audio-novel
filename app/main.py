@@ -142,7 +142,6 @@ async def prepare(
 
     async def work(job: jobs.Job):
         pages, ocr_pages = 1, 0
-        current_text = original
         if file is not None and filename.endswith(".pdf"):
             job.update("กำลังอ่าน PDF", 1)
             try:
@@ -152,6 +151,7 @@ async def prepare(
             except PdfError as exc:
                 raise RuntimeError(str(exc)) from exc
         else:
+            current_text = original
             job.update(f"กำลังอ่าน{input_kind}", 15)
         if not current_text:
             raise RuntimeError("ไม่พบข้อความในข้อมูลที่ส่งมา")
