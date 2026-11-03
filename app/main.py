@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 from pathlib import Path
 from urllib.parse import quote
 
@@ -32,6 +33,13 @@ DEFAULT_VOICE = os.getenv("TTS_VOICE", "th-TH-PremwadeeNeural")
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "20"))
 MAX_PAGES = int(os.getenv("MAX_PAGES", "50"))
 MAX_CHARS = int(os.getenv("MAX_CHARS", "300000"))
+
+
+def safe_audio_name(name: str) -> str:
+    """Keep user-provided output names safe for downloads and Cloudinary public IDs."""
+    cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name).strip().rstrip(".")
+    cleaned = re.sub(r"\.mp3$", "", cleaned, flags=re.IGNORECASE).strip().rstrip(".")
+    return cleaned[:120] or "audio"
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -189,6 +197,7 @@ async def synthesize_job(
     name: str = Form("audio"),
 ):
     """แปลงข้อความเป็น MP3 ติดตามผลที่ /api/jobs/{id} แล้วโหลดเสียงที่ /api/jobs/{id}/audio"""
+    name = safe_audio_name(name)
     _check_voice(voice, rate, pitch, volume)
     text = text.strip()
     if not text:
@@ -225,6 +234,7 @@ def job_audio(job_id: str, name: str = "audio"):
     job = _job_or_404(job_id)
     if job.status != "done" or job.audio is None:
         raise HTTPException(409, "ไฟล์เสียงยังไม่พร้อม")
+    name = safe_audio_name(name)
     return Response(
         content=job.audio,
         media_type="audio/mpeg",
