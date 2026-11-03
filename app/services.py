@@ -5,6 +5,7 @@ import io
 import os
 import re
 import threading
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -22,11 +23,12 @@ TTS_CHUNK_CHARS = 800
 # ยิงขนานมากเกินไปบริการ Edge จะเริ่มตอบ "No audio" (ทดสอบแล้ว 3 กำลังดี)
 TTS_CONCURRENCY = int(os.getenv("TTS_CONCURRENCY", "3"))
 TRANSLATE_CHUNK_CHARS = {"claude": 6000, "gemini": 6000, "google": 4500}
-TRANSLATE_CONCURRENCY = {"claude": 4, "gemini": 4, "google": 2}
+TRANSLATE_CONCURRENCY = {"claude": 4, "gemini": 1, "google": 2}
 HPLT_BATCH = 16
 
 CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-opus-5-5")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+GEMINI_MIN_INTERVAL = float(os.getenv("GEMINI_MIN_INTERVAL", "5"))
 HPLT_MODEL_DIR = Path(os.getenv("HPLT_MODEL_DIR", Path(__file__).parent.parent / "models" / "hplt-en-th"))
 OCR_LANGUAGES = os.getenv("OCR_LANGUAGES", "tha+eng")
 
@@ -280,6 +282,17 @@ _GEMINI_SYSTEM = (
     "Keep the meaning, tone, dialogue and paragraph breaks. Transliterate character "
     "and place names into Thai script. Output only the Thai translation, with no notes."
 )
+_gemini_rate_lock = asyncio.Lock()
+_gemini_last_request = 0.0
+
+
+def _gemini_retry_seconds(error: Exception) -> float | None:
+    message = str(error)
+    match = re.search(r"retry in ([0-9]+(?:\.[0-9]+)?)s", message, re.I)
+    if match:
+        return float(match.group(1)) + 1
+    match = re.search(r"retryDelay[^0-9]*([0-9]+)s", message, re.I)
+    return float(match.group(1)) + 1 if match else None
 
 
 async def _translate_gemini(chunk: str) -> str:
@@ -290,18 +303,31 @@ async def _translate_gemini(chunk: str) -> str:
     if not api_key:
         raise TranslateError("ยังไม่ได้ตั้งค่า GEMINI_API_KEY")
 
+    global _gemini_last_request
     client = genai.Client(api_key=api_key)
     try:
-        response = await client.aio.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=chunk,
-            config=types.GenerateContentConfig(
-                system_instruction=_GEMINI_SYSTEM,
-                temperature=0.2,
-            ),
-        )
-    except Exception as exc:
-        raise TranslateError(f"Gemini API แปลไม่สำเร็จ: {exc}") from exc
+        for attempt in range(3):
+            async with _gemini_rate_lock:
+                wait = GEMINI_MIN_INTERVAL - (time.monotonic() - _gemini_last_request)
+                if wait > 0:
+                    await asyncio.sleep(wait)
+                _gemini_last_request = time.monotonic()
+            try:
+                response = await client.aio.models.generate_content(
+                    model=GEMINI_MODEL,
+                    contents=chunk,
+                    config=types.GenerateContentConfig(
+                        system_instruction=_GEMINI_SYSTEM,
+                        temperature=0.2,
+                    ),
+                )
+                break
+            except Exception as exc:
+                retry_seconds = _gemini_retry_seconds(exc)
+                is_quota_error = "429" in str(exc) or "RESOURCE_EXHAUSTED" in str(exc)
+                if not is_quota_error or attempt == 2:
+                    raise TranslateError(f"Gemini API แปลไม่สำเร็จ: {exc}") from exc
+                await asyncio.sleep(retry_seconds or GEMINI_MIN_INTERVAL)
     finally:
         await client.aio.aclose()
 

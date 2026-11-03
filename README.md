@@ -4,6 +4,7 @@
 
 - ดึงข้อความจาก PDF ด้วย [PyMuPDF](https://pymupdf.readthedocs.io/) และ OCR หน้าสแกนด้วย Tesseract (ไทย + อังกฤษ)
 - แปลอังกฤษ → ไทยอัตโนมัติ เลือกตัวแปลได้ 4 แบบ (ดูด้านล่าง) และตรวจแก้คำแปลบนหน้าเว็บก่อนแปลงเสียง
+- ปิดตัวเลือกแปลภาษาได้เพื่อดึงข้อความจาก PDF/TXT แล้วนำไปแปลงเสียงทันทีโดยคงภาษาต้นฉบับ
 - แปลงเป็นเสียงด้วย [edge-tts](https://github.com/rany2/edge-tts) เสียงไทย เปรมวดี / นิวัฒน์ ปรับความเร็ว ระดับเสียง ความดังได้ และกดฟังตัวอย่างเสียงก่อนได้
 - แสดงความคืบหน้าเป็น % ทั้งตอนอ่าน/แปล และตอนแปลงเสียง
 - เก็บไฟล์ MP3 บน [Cloudinary](https://cloudinary.com/documentation/audio_transformations) (ไม่บังคับ)
@@ -14,7 +15,7 @@
 |---|---|---|
 | `hplt` | [HPLT en→th](https://huggingface.co/HPLT/translate-en-th-v2.0-hplt_opus) (Marian → CTranslate2 int8, ~80 MB) | ฟรี ออฟไลน์ เร็ว คุณภาพพอใช้ บางประโยคแปลตรงตัว |
 | `claude` | Claude API (`claude-opus-5-5`) | แปลนิยายได้ลื่นที่สุด ต้องมี `ANTHROPIC_API_KEY` มีค่าใช้จ่าย |
-| `gemini` | Gemini API (`gemini-2.5-flash`) | ต้องมี `GEMINI_API_KEY` มีโควตา/ค่าใช้จ่ายตาม Google AI |
+| `gemini` | Gemini API (`gemini-3.5-flash-lite`) | ต้องมี `GEMINI_API_KEY` มีโควตา/ค่าใช้จ่ายตาม Google AI |
 | `google` | Google Translate แบบฟรีผ่าน deep-translator | ถูกจำกัดอัตราง่าย ไม่แนะนำ |
 | `auto` (ค่าเริ่มต้น) | claude → gemini → hplt → google ตาม key/โมเดลที่มี | |
 
@@ -135,7 +136,8 @@ docker run -p 8000:8000 --env-file .env made-audio-novel
 - **HPLT เป็นตัวแปลเริ่มต้น** — ฟรี ออฟไลน์ ไม่ติด rate limit; ไม่มีเวอร์ชัน Hugging Face Transformers จึงแปลงไฟล์ Marian เป็น CTranslate2 เอง (`scripts/prepare_hplt.py`) แทนการคอมไพล์ MarianNMT · OPUS-MT ทางการไม่มี en→th (มีแต่ th→en)
 - **ไม่ใช้ Google ฟรีเป็นหลัก** — โดน 429 ตั้งแต่ request แรกจาก IP ของเครื่อง dev
 - **Claude เป็นตัวเลือกเสริม** — คุณภาพแปลนิยายดีที่สุด แต่ต้องมี key และมีค่าใช้จ่าย เปิดอัตโนมัติเมื่อมี `ANTHROPIC_API_KEY`
-- **Gemini เป็นตัวเลือกเสริม** — ใช้ `gemini-2.5-flash` เมื่อมี `GEMINI_API_KEY` และเลือก `TRANSLATOR=gemini` หรือปล่อยให้ `auto` เลือก
+- **Gemini เป็นตัวเลือกเสริม** — ใช้ `gemini-3.5-flash-lite` เมื่อมี `GEMINI_API_KEY` และเลือก `TRANSLATOR=gemini` หรือปล่อยให้ `auto` เลือก
+- **Gemini Free Tier มี rate limit** — ระบบส่งคำขอทีละก้อนและเว้นช่วงตาม `GEMINI_MIN_INTERVAL` (ค่าเริ่มต้น 5 วินาที); ถ้า API ตอบ 429 ระบบจะรอตามเวลาที่แจ้งแล้วลองใหม่
 - **TTS แบ่งก้อน 800 ตัวอักษร ขนาน 3** — ขนาน 4-8 ทำให้บริการ Edge ตอบ "No audio"
 - **ตัดประโยคไม่ตัดกลางเครื่องหมายคำพูด** — ตัดกลางแล้ว HPLT ใส่สัญลักษณ์แปลก (`·`)
 - **`normalize_thai`** — แก้ `ํา` → `ำ` และช่องว่างก่อนวรรณยุกต์ที่ HPLT ใส่มา ไม่งั้น TTS อ่านเพี้ยน
