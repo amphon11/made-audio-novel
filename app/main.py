@@ -17,6 +17,7 @@ from .services import (  # noqa: E402
     THAI_VOICES,
     PdfError,
     cloudinary_enabled,
+    clean_text,
     detect_language,
     extract_text,
     hplt_available,
@@ -52,12 +53,22 @@ def _check_voice(voice: str, rate: int, pitch: int, volume: int) -> None:
 
 
 async def _read_pdf(file: UploadFile) -> bytes:
-    if not (file.filename or "").lower().endswith(".pdf"):
-        raise HTTPException(400, "รองรับเฉพาะไฟล์ .pdf")
+    if not (file.filename or "").lower().endswith((".pdf", ".txt", ".text")):
+        raise HTTPException(400, "รองรับเฉพาะไฟล์ .pdf หรือ .txt")
     data = await file.read()
     if len(data) > MAX_UPLOAD_MB * 1024 * 1024:
         raise HTTPException(413, f"ไฟล์ใหญ่เกิน {MAX_UPLOAD_MB} MB")
     return data
+
+
+async def _read_text_file(file: UploadFile) -> str:
+    data = await _read_pdf(file)
+    if (file.filename or "").lower().endswith(".pdf"):
+        raise HTTPException(400, "ไฟล์นี้ไม่ใช่ไฟล์ข้อความ")
+    try:
+        return clean_text(data.decode("utf-8-sig"))
+    except UnicodeDecodeError as exc:
+        raise HTTPException(400, "อ่านไฟล์ข้อความไม่ได้ กรุณาบันทึกเป็น UTF-8") from exc
 
 
 def _job_or_404(job_id: str) -> jobs.Job:
@@ -102,25 +113,57 @@ async def voice_demo(voice: str, rate: int = 0, pitch: int = 0, volume: int = 0)
 
 
 @app.post("/api/prepare")
-async def prepare(file: UploadFile = File(...), translate: bool = Form(True)):
-    """อ่าน PDF (OCR หน้าสแกน) และแปลเป็นไทยถ้าเป็นภาษาอื่น ติดตามผลที่ /api/jobs/{id}"""
-    data = await _read_pdf(file)
+async def prepare(
+    file: UploadFile | None = File(None),
+    text: str | None = Form(None),
+    translate: bool = Form(True),
+):
+    """อ่าน PDF/ไฟล์ข้อความ หรือรับข้อความที่วางเอง แล้วแปลเป็นไทยตามที่เลือก"""
+    if file is not None and text is not None:
+        raise HTTPException(400, "กรุณาส่งไฟล์หรือข้อความอย่างใดอย่างหนึ่ง")
+    if file is None and not (text or "").strip():
+        raise HTTPException(400, "กรุณาเลือกไฟล์หรือวางข้อความ")
+
+    is_text_input = text is not None
+    if file is not None:
+        filename = (file.filename or "").lower()
+        if filename.endswith((".txt", ".text")):
+            original = await _read_text_file(file)
+            input_kind = "ไฟล์ข้อความ"
+        else:
+            data = await _read_pdf(file)
+            input_kind = "PDF"
+    else:
+        original = clean_text(text or "")
+        input_kind = "ข้อความที่วางเอง"
+
+    if not is_text_input and file is not None and filename.endswith(".pdf"):
+        input_kind = "PDF"
 
     async def work(job: jobs.Job):
-        job.update("กำลังอ่าน PDF", 1)
-        try:
-            original, pages, ocr_pages = await asyncio.to_thread(
-                extract_text, data, MAX_PAGES, lambda p: job.update("กำลังอ่าน PDF", 1 + p * 14)
-            )
-        except PdfError as exc:
-            raise RuntimeError(str(exc)) from exc
-        language = detect_language(original)
+        pages, ocr_pages = 1, 0
+        current_text = original
+        if file is not None and filename.endswith(".pdf"):
+            job.update("กำลังอ่าน PDF", 1)
+            try:
+                current_text, pages, ocr_pages = await asyncio.to_thread(
+                    extract_text, data, MAX_PAGES, lambda p: job.update("กำลังอ่าน PDF", 1 + p * 14)
+                )
+            except PdfError as exc:
+                raise RuntimeError(str(exc)) from exc
+        else:
+            job.update(f"กำลังอ่าน{input_kind}", 15)
+        if not current_text:
+            raise RuntimeError("ไม่พบข้อความในข้อมูลที่ส่งมา")
+        if len(current_text) > MAX_CHARS:
+            raise RuntimeError(f"ข้อความยาวเกิน {MAX_CHARS:,} ตัวอักษร")
+        language = detect_language(current_text)
 
-        text, translated = original, False
-        if translate and language != "th":
+        text, translated = current_text, False
+        if translate and not is_text_input and language != "th":
             stage = f"กำลังแปลเป็นภาษาไทย ({translator_name()})"
             job.update(stage, 15)
-            text = await translate_to_thai(original, lambda p: job.update(stage, 15 + p * 85))
+            text = await translate_to_thai(current_text, lambda p: job.update(stage, 15 + p * 85))
             translated = True
 
         job.result = {
@@ -129,7 +172,7 @@ async def prepare(file: UploadFile = File(...), translate: bool = Form(True)):
             "language": language,
             "translated": translated,
             "translator": translator_name() if translated else None,
-            "original": original,
+            "original": current_text,
             "text": text,
         }
 
