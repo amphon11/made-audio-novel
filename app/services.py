@@ -83,11 +83,51 @@ def extract_text(pdf_bytes: bytes, max_pages: int, on_progress: Progress | None 
             if on_progress:
                 on_progress((i + 1) / pages)
 
-    text = clean_text("\n\n".join(texts))
+    text = clean_text("\n\n".join(strip_page_furniture(texts)))
     if not text:
         hint = "" if can_ocr else " และเครื่องนี้ไม่มี Tesseract OCR"
         raise PdfError(f"ไม่พบข้อความใน PDF (อาจเป็นไฟล์สแกน{hint})")
     return text, pages, ocr_pages
+
+
+_PAGE_NUMBER = re.compile(
+    r"^[\s\-–—|•·(\[]*(?:(?:page|p\.|หน้า(?:ที่)?)\s*)?[0-9๐-๙ivxlc]{1,6}(?:\s*(?:/|of|จาก)\s*[0-9๐-๙]{1,6})?[\s\-–—|•·)\]]*$",
+    re.I,
+)
+FURNITURE_LINES = 3  # ตรวจหัว/ท้ายกระดาษเฉพาะกี่บรรทัดแรกและท้ายของแต่ละหน้า
+FURNITURE_MAX_CHARS = 70  # หัว/ท้ายกระดาษจริงสั้น บรรทัดเนื้อเรื่องเต็มบรรทัดไม่นับ
+
+
+def _furniture_key(line: str) -> str:
+    return re.sub(r"[0-9๐-๙]+", "#", re.sub(r"\s+", " ", line.strip().lower()))
+
+
+def strip_page_furniture(page_texts: list[str]) -> list[str]:
+    """ตัดเลขหน้าและหัว/ท้ายกระดาษที่ซ้ำทุกหน้า (เช่น "ชื่อเรื่อง Page 3 of 10") ไม่ให้ถูกแปลและอ่านออกเสียง"""
+    pages = [text.splitlines() for text in page_texts]
+
+    def edge_indexes(lines: list[str]) -> list[int]:
+        filled = [i for i, line in enumerate(lines) if line.strip()]
+        return sorted(set(filled[:FURNITURE_LINES] + filled[-FURNITURE_LINES:]))
+
+    # บรรทัดขอบหน้าที่หน้าตาเหมือนกัน (ไม่สนตัวเลข) ในครึ่งหนึ่งของหน้าขึ้นไป ถือเป็นหัว/ท้ายกระดาษ
+    counts: dict[str, int] = {}
+    for lines in pages:
+        for key in {_furniture_key(lines[i]) for i in edge_indexes(lines) if len(lines[i].strip()) <= FURNITURE_MAX_CHARS}:
+            counts[key] = counts.get(key, 0) + 1
+    threshold = max(2, len(pages) / 2)
+    repeated = {key for key, n in counts.items() if n >= threshold}
+
+    def is_furniture(line: str) -> bool:
+        if _HEADING.match(line):  # หัวบทอยู่ต้นหน้าทุกหน้าได้ ห้ามตัด
+            return False
+        return _furniture_key(line) in repeated or bool(_PAGE_NUMBER.match(line))
+
+    cleaned = []
+    for lines in pages:
+        drop = {i for i in edge_indexes(lines) if is_furniture(lines[i])}
+        cleaned.append("\n".join(line for i, line in enumerate(lines) if i not in drop))
+    return cleaned
 
 
 _HEADING = re.compile(r"^[ \t]*((?:chapter\b|prologue\b|epilogue\b|part\b|บทที่|ตอนที่|บทนำ|บทส่งท้าย)[^\n]{0,80})$", re.I | re.M)

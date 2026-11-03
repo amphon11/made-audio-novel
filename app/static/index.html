@@ -529,25 +529,33 @@
     return { rate: $("rate").value, pitch: $("pitch").value, volume: $("volume").value };
   }
 
+  // เพิ่มทุกครั้งที่หยุด/เริ่มเดโมใหม่ เพื่อทิ้งผลของ play() ที่ค้างอยู่จากการกดครั้งก่อน
+  let demoToken = 0;
+
   function stopDemo() {
+    demoToken++;
     demoAudio.pause();
     document.querySelectorAll(".demo").forEach((b) => b.classList.remove("playing", "loading"));
   }
   demoAudio.addEventListener("ended", stopDemo);
 
   async function playDemo(btn, voice) {
-    const wasPlaying = btn.classList.contains("playing");
+    const active = btn.classList.contains("playing") || btn.classList.contains("loading");
     stopDemo();
-    if (wasPlaying) return;
+    if (active) return;  // กดซ้ำระหว่างโหลดหรือเล่น = หยุด
+    const token = demoToken;
     const s = settings();
     btn.classList.add("loading");
+    setStatus("ttsStatus", "");
     demoAudio.src = `/api/voices/${voice}/demo?rate=${s.rate}&pitch=${s.pitch}&volume=${s.volume}`;
     try {
       await demoAudio.play();
+      if (token !== demoToken) return;
       btn.classList.remove("loading"); btn.classList.add("playing");
-    } catch {
+    } catch (err) {
+      if (token !== demoToken || err.name === "AbortError") return;  // ถูกหยุดเอง ไม่ใช่ error
       btn.classList.remove("loading");
-      setStatus("ttsStatus", "เล่นเสียงตัวอย่างไม่สำเร็จ", true);
+      setStatus("ttsStatus", "เล่นเสียงตัวอย่างไม่สำเร็จ ลองใหม่อีกครั้ง", true);
     }
   }
 
